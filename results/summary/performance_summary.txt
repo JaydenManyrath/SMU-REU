@@ -1,3 +1,0 @@
-Plaintext Accuracy: 100.00%
-FHE Accuracy: 145/156 = 92.95%
-Average FHE Inference Time (sec): 0.068
