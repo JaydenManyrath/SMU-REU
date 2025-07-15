@@ -292,6 +292,26 @@ def main():
     plt.savefig(os.path.join(SUMMARY_DIR, "svd_k_comparison.png"))
     plt.show()
 
+        # --- Plot for Section 2.2: SVD Compression Experimentation ---
+    k_vals = [row[0] for row in summary_rows]
+    accuracies = [float(row[1]) for row in summary_rows]
+
+    plt.figure(figsize=(8, 5))
+    plt.plot(k_vals, accuracies, marker='o', linestyle='-', color='purple', linewidth=2)
+    plt.title('Effect of SVD k-value on Classification Accuracy')
+    plt.xlabel('SVD k-value (Number of Singular Values Kept)')
+    plt.ylabel('Classification Accuracy (%)')
+    plt.grid(True, linestyle='--', alpha=0.6)
+    plt.xticks(k_vals)  # Make sure each k is labeled
+    plt.tight_layout()
+
+    # Save the figure for documentation
+    svd_exp_plot_path = os.path.join(SUMMARY_DIR, "svd_compression_accuracy.png")
+    plt.savefig(svd_exp_plot_path)
+    plt.show()
+    print(f"📊 Saved SVD Compression Experimentation plot to {svd_exp_plot_path}")
+
+
 
 if __name__ == "__main__":
     main()
