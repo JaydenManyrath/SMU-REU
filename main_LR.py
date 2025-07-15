@@ -11,7 +11,6 @@ model performance on unseen data.
 import os
 import cv2
 import time
-import csv
 import numpy as np
 import matplotlib.pyplot as plt
 from sklearn.model_selection import train_test_split
@@ -23,7 +22,7 @@ from concrete.ml.sklearn import LogisticRegression
 
 # --- Constants ---
 IMAGE_SIZE = (32, 32)
-RESIZED_IMAGE_SIZE = (32, 32)
+RESIZED_IMAGE_SIZE = (24, 24)
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 CRIMINAL_DIR = os.path.join(BASE_DIR, "dataset", "Criminal")
@@ -180,7 +179,7 @@ def main():
     os.makedirs(TIMING_DIR, exist_ok=True)
     os.makedirs(DRONE_INPUT_DIR, exist_ok=True)
 
-    k_values = [4, 16, 32]
+    k_values = [4, 6, 8, 10, 12, 14, 16, 18, 20, 22, 24]
     summary_rows = []
 
     print("📥 Loading and preparing dataset...")
@@ -268,6 +267,30 @@ def main():
     for row in summary_rows:
         print(f"{row[0]:>5} | {row[1]:>20} | {row[2]:>20}")
     print("-" * 55)
+
+        # --- Visualization ---
+    k_vals = [row[0] for row in summary_rows]
+    accuracies = [float(row[1]) for row in summary_rows]
+    inference_times = [float(row[2]) for row in summary_rows]
+
+    fig, ax1 = plt.subplots()
+
+    color1 = 'tab:blue'
+    ax1.set_xlabel('SVD k-value')
+    ax1.set_ylabel('Accuracy (%)', color=color1)
+    ax1.plot(k_vals, accuracies, marker='o', color=color1, label='Accuracy')
+    ax1.tick_params(axis='y', labelcolor=color1)
+
+    ax2 = ax1.twinx()  # instantiate a second axes that shares the same x-axis
+    color2 = 'tab:red'
+    ax2.set_ylabel('Avg FHE Inference Time (s)', color=color2)
+    ax2.plot(k_vals, inference_times, marker='s', color=color2, label='Inference Time')
+    ax2.tick_params(axis='y', labelcolor=color2)
+
+    plt.title('FHE Inference Time vs Accuracy for Varying SVD k-values')
+    fig.tight_layout()
+    plt.savefig(os.path.join(SUMMARY_DIR, "svd_k_comparison.png"))
+    plt.show()
 
 
 if __name__ == "__main__":
