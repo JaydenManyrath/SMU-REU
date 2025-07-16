@@ -97,7 +97,7 @@ def load_images_from_folder(folder, label, size=RESIZED_IMAGE_SIZE, svd_k=50):
     return data
 
 def train_and_compile_model(X, y, progress_callback=None):
-    """Trains a LinearSVC Regression model and compiles it for FHE."""
+    """Trains a LinearSVC model and compiles it for FHE."""
     global model
     model = LinearSVC(n_bits=6)
     model.fit(X, y)
@@ -165,7 +165,7 @@ def main():
     os.makedirs(TIMING_DIR, exist_ok=True)
     os.makedirs(DRONE_INPUT_DIR, exist_ok=True)
 
-    k_values = [4, 6, 8, 10, 12, 14, 16, 18, 20, 22, 24]
+    k_values = [10, 12, 14, 16]
     summary_rows = []
 
     print("📥 Loading and preparing dataset...")
@@ -222,6 +222,34 @@ def main():
         print("\n📊 Evaluation Report (FHE on Test Set):\n")
         print(classification_report(y_test_k, fhe_predictions, target_names=["General", "Criminal"]))
 
+        # --- New: Confusion Matrix Calculation and Display ---
+        cm = confusion_matrix(y_test_k, fhe_predictions)
+        
+        # Safely unpack, providing a default for cases with only one class in predictions
+        if cm.size == 1:
+            if y_test_k[0] == 0: # Only negatives
+                tn, fp, fn, tp = cm.ravel()[0], 0, 0, 0
+            else: # Only positives
+                tn, fp, fn, tp = 0, 0, 0, cm.ravel()[0]
+        else:
+            tn, fp, fn, tp = cm.ravel()
+
+        print("\nConfusion Matrix (FHE on Test Set):")
+        print(f"  True Negatives (TN): {tn}")
+        print(f"  False Positives (FP): {fp}")
+        print(f"  False Negatives (FN): {fn}")
+        print(f"  True Positives (TP): {tp}\n")
+        
+        # Plot and save the confusion matrix
+        cm_display = ConfusionMatrixDisplay(confusion_matrix=cm, display_labels=["General", "Criminal"])
+        cm_display.plot(cmap=plt.cm.Blues)
+        plt.title(f'FHE SVC Confusion Matrix for SVD k={svd_k}')
+        cm_plot_path = os.path.join(SUMMARY_DIR, f"confusion_matrix_svc_k_{svd_k}.png")
+        plt.savefig(cm_plot_path)
+        plt.close() # Close the plot to avoid displaying it in a loop
+        print(f"📊 Saved Confusion Matrix plot to {cm_plot_path}")
+        # --- End of New Section ---
+
         print("\n================ Performance Summary ================\n")
         print(f"Model Accuracy (on unseen data): {correct}/{total} = {fhe_acc:.2f}%")
         print(f"Average Encrypted Inference Time: {avg_fhe_time:.3f} sec\n")
@@ -269,20 +297,20 @@ def main():
     ax2.plot(k_vals, inference_times, marker='s', color=color2, label='Inference Time')
     ax2.tick_params(axis='y', labelcolor=color2)
 
-    plt.title('FHE Inference Time vs Accuracy for Varying SVD k-values')
+    plt.title('FHE SVC Inference Time vs Accuracy for Varying SVD k-values')
     fig.tight_layout()
-    plt.savefig(os.path.join(SUMMARY_DIR, "svd_k_comparison.png"))
+    plt.savefig(os.path.join(SUMMARY_DIR, "svd_k_comparison_svc.png"))
     plt.show()
 
     plt.figure(figsize=(8, 5))
     plt.plot(k_vals, accuracies, marker='o', linestyle='-', color='purple', linewidth=2)
-    plt.title('Effect of SVD k-value on Classification Accuracy')
+    plt.title('Effect of SVD k-value on SVC Classification Accuracy')
     plt.xlabel('SVD k-value (Number of Singular Values Kept)')
     plt.ylabel('Classification Accuracy (%)')
     plt.grid(True, linestyle='--', alpha=0.6)
     plt.xticks(k_vals)
     plt.tight_layout()
-    svd_exp_plot_path = os.path.join(SUMMARY_DIR, "svd_compression_accuracy.png")
+    svd_exp_plot_path = os.path.join(SUMMARY_DIR, "svd_compression_accuracy_svc.png")
     plt.savefig(svd_exp_plot_path)
     plt.show()
     print(f"📊 Saved SVD Compression Experimentation plot to {svd_exp_plot_path}")
