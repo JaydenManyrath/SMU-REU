@@ -165,7 +165,7 @@ def main():
     os.makedirs(TIMING_DIR, exist_ok=True)
     os.makedirs(DRONE_INPUT_DIR, exist_ok=True)
 
-    k_values = [4, 6, 8, 10, 12, 14, 16, 18, 20, 22, 24]
+    k_values = [10, 12, 14]
     summary_rows = []
 
     print("📥 Loading and preparing dataset...")
@@ -222,6 +222,26 @@ def main():
         print("\n📊 Evaluation Report (FHE on Test Set):\n")
         print(classification_report(y_test_k, fhe_predictions, target_names=["General", "Criminal"]))
 
+        # --- New: Confusion Matrix Calculation and Display ---
+        cm = confusion_matrix(y_test_k, fhe_predictions)
+        tn, fp, fn, tp = cm.ravel()
+
+        print("\nConfusion Matrix (FHE on Test Set):")
+        print(f"  True Negatives (TN): {tn}")
+        print(f"  False Positives (FP): {fp}")
+        print(f"  False Negatives (FN): {fn}")
+        print(f"  True Positives (TP): {tp}\n")
+        
+        # Plot and save the confusion matrix
+        cm_display = ConfusionMatrixDisplay(confusion_matrix=cm, display_labels=["General", "Criminal"])
+        cm_display.plot(cmap=plt.cm.Blues)
+        plt.title(f'FHE Confusion Matrix for SVD k={svd_k}')
+        cm_plot_path = os.path.join(SUMMARY_DIR, f"confusion_matrix_k_{svd_k}.png")
+        plt.savefig(cm_plot_path)
+        plt.close() # Close the plot to avoid displaying it in a loop
+        print(f"📊 Saved Confusion Matrix plot to {cm_plot_path}")
+        # --- End of New Section ---
+
         print("\n================ Performance Summary ================\n")
         print(f"Model Accuracy (on unseen data): {correct}/{total} = {fhe_acc:.2f}%")
         print(f"Average Encrypted Inference Time: {avg_fhe_time:.3f} sec\n")
@@ -269,14 +289,14 @@ def main():
     ax2.plot(k_vals, inference_times, marker='s', color=color2, label='Inference Time')
     ax2.tick_params(axis='y', labelcolor=color2)
 
-    plt.title('FHE Inference Time vs Accuracy for Varying SVD k-values')
+    plt.title('FHE Logistic Regression Inference Time vs Accuracy for Varying SVD k-values (New Dataset)')
     fig.tight_layout()
     plt.savefig(os.path.join(SUMMARY_DIR, "svd_k_comparison.png"))
     plt.show()
 
     plt.figure(figsize=(8, 5))
     plt.plot(k_vals, accuracies, marker='o', linestyle='-', color='purple', linewidth=2)
-    plt.title('Effect of SVD k-value on Classification Accuracy')
+    plt.title('Effect of Logistic Regression SVD k-value on Classification Accuracy (New Dataset)')
     plt.xlabel('SVD k-value (Number of Singular Values Kept)')
     plt.ylabel('Classification Accuracy (%)')
     plt.grid(True, linestyle='--', alpha=0.6)
