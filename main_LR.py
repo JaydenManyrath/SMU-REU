@@ -41,7 +41,6 @@ CASCADE_PATH = cv2.data.haarcascades + 'haarcascade_frontalface_default.xml'
 face_cascade = cv2.CascadeClassifier(CASCADE_PATH)
 model = None  # Global model variable
 
-
 # --- Helper Functions ---
 
 def clean_results_folder(folder=RESULTS_DIR):
@@ -62,7 +61,6 @@ def clean_results_folder(folder=RESULTS_DIR):
         else:
             os.remove(full_path)
 
-
 def apply_svd(image_array, k):
     """
     Apply SVD to a grayscale image and reconstruct it using the top-k singular values.
@@ -75,7 +73,6 @@ def apply_svd(image_array, k):
     VT_reduced = VT[:k, :]
     compressed = np.dot(U_reduced, np.dot(S_reduced, VT_reduced))
     return np.clip(compressed, 0, 255)
-
 
 def load_images_from_folder(folder, label, size=RESIZED_IMAGE_SIZE, svd_k=50):
     """
@@ -99,7 +96,6 @@ def load_images_from_folder(folder, label, size=RESIZED_IMAGE_SIZE, svd_k=50):
             data.append((compressed.flatten(), label))
     return data
 
-
 def train_and_compile_model(X, y, progress_callback=None):
     """Trains a Logistic Regression model and compiles it for FHE."""
     global model
@@ -111,16 +107,13 @@ def train_and_compile_model(X, y, progress_callback=None):
     if progress_callback:
         progress_callback("Training and compilation finished.")
 
-
 def predict_image_plaintext(image_array):
     """Predicts using the simulated (plaintext) FHE model."""
     global model
     if model is None:
         raise RuntimeError("Model not trained yet. Call train_and_compile_model() first.")
     x = image_array.flatten().astype(np.float32).reshape(1, -1)
-    # This is a simulation of the FHE execution
     return model.predict(x)[0]
-
 
 def predict_image_fhe(image_array):
     """Predicts using the actual FHE circuit."""
@@ -128,13 +121,9 @@ def predict_image_fhe(image_array):
     if model is None:
         raise RuntimeError("Model not trained yet. Call train_and_compile_model() first.")
     x = image_array.flatten().astype(np.float32).reshape(1, -1)
-    # Quantize input for the FHE circuit
     x_q = model.quantize_input(x)
-    # Encrypt, run the circuit, and decrypt the result
     logit = model.fhe_circuit.encrypt_run_decrypt(x_q)[0]
-    # The model's decision function is based on the logit's sign
     return 1 if logit > 0 else 0
-
 
 def preprocess_drone_image(image_path, output_dir=DRONE_INPUT_DIR, output_file="transferred_image.npy"):
     """Simulates receiving and processing a drone image for FHE inference."""
@@ -149,7 +138,6 @@ def preprocess_drone_image(image_path, output_dir=DRONE_INPUT_DIR, output_file="
     np.save(output_path, array)
     print(f"📡 Drone image processed and saved as {output_path}")
     return output_path
-
 
 def plot_roc_curve(y_true, y_scores, output_path):
     """Plots and saves the ROC curve."""
@@ -166,14 +154,12 @@ def plot_roc_curve(y_true, y_scores, output_path):
     plt.close()
     print(f"📊 Saved ROC curve to {output_path}")
 
-
 # --- Main Execution Logic ---
 
 def main():
     print("🧹 Cleaning previous results...")
     clean_results_folder()
-    
-    # Create necessary directories
+
     os.makedirs(SAMPLES_DIR, exist_ok=True)
     os.makedirs(SUMMARY_DIR, exist_ok=True)
     os.makedirs(TIMING_DIR, exist_ok=True)
@@ -193,23 +179,14 @@ def main():
     X_all = np.array(X_all, dtype=np.float32)
     y_all = np.array(y_all)
 
-    # --- LOGIC FIX: Split data BEFORE training ---
     print(" splitting data into training and testing sets...")
     X_train, X_test, y_train, y_test = train_test_split(
         X_all, y_all, test_size=0.2, random_state=42, stratify=y_all
     )
-    # 'stratify=y' is good practice for classification to keep label ratios consistent
 
     for svd_k in k_values:
         print(f"\n🚀 Running experiment for SVD k = {svd_k}")
-        
-        # Note: In a real-world scenario, SVD would be part of a preprocessing pipeline
-        # applied to X_train and X_test separately. For this script's structure,
-        # we retrain on the full training set with different SVD effects (which is okay,
-        # but less efficient than applying SVD to the already split data).
-        
-        # For simplicity in this example, we reload and re-process the data for each k.
-        # A more optimized approach would be to process all data once and then select features.
+
         criminal_data_k = load_images_from_folder(CRIMINAL_DIR, label=1, svd_k=svd_k)
         general_data_k = load_images_from_folder(GENERAL_DIR, label=0, svd_k=svd_k)
         combined_k = criminal_data_k + general_data_k
@@ -219,59 +196,64 @@ def main():
         X_train_k, X_test_k, y_train_k, y_test_k = train_test_split(
             X_k, y_k, test_size=0.2, random_state=42, stratify=y_k
         )
-        
+
         print("💪 Training and compiling model on the training set...")
-        # Train ONLY on the training data
         train_and_compile_model(X_train_k, y_train_k)
 
-        # --- EVALUATION on the UNSEEN test set ---
         print("\n📊 Evaluating model on the test set (using FHE)...")
-
         fhe_times = []
         fhe_predictions = []
         total = len(X_test_k)
 
         for i in range(total):
             x_sample = X_test_k[i]
-            
             start = time.time()
             pred = predict_image_fhe(x_sample)
             end = time.time()
-            
             fhe_times.append(end - start)
             fhe_predictions.append(pred)
-            
             print(f"  Processed {i + 1}/{total}", end='\r')
 
-        print("\n")  # Newline after progress bar
-
-        # Accuracy is calculated based on FHE predictions on the test set.
+        print("\n")
         fhe_acc = accuracy_score(y_test_k, fhe_predictions) * 100
         correct = np.sum(np.array(fhe_predictions) == y_test_k)
         avg_fhe_time = sum(fhe_times) / len(fhe_times) if fhe_times else 0
 
         print("\n📊 Evaluation Report (FHE on Test Set):\n")
         print(classification_report(y_test_k, fhe_predictions, target_names=["General", "Criminal"]))
-        
+
         print("\n================ Performance Summary ================\n")
         print(f"Model Accuracy (on unseen data): {correct}/{total} = {fhe_acc:.2f}%")
         print(f"Average Encrypted Inference Time: {avg_fhe_time:.3f} sec\n")
         print("=====================================================\n")
 
-        summary_rows.append([svd_k, f"{fhe_acc:.2f}", f"{avg_fhe_time:.4f}"])
+        print("\n🔍 Evaluating model on the test set (plaintext)...")
+        start_plain = time.time()
+        plain_predictions = [predict_image_plaintext(x) for x in X_test_k]
+        end_plain = time.time()
+        plain_acc = accuracy_score(y_test_k, plain_predictions) * 100
+        plain_latency = (end_plain - start_plain) / len(X_test_k)
 
-    print("\n📊 SVD k Comparison Summary:")
-    print("-" * 55)
-    print(f"{'k':>5} | {'Model Accuracy (%)':>20} | {'Avg FHE Time (s)':>20}")
-    print("-" * 55)
+        summary_rows.append([
+            svd_k,
+            f"{plain_acc:.2f}",
+            f"{fhe_acc:.2f}",
+            f"{avg_fhe_time:.4f}"
+        ])
+
+    # --- Summary Table ---
+    print("\n📊 Model Evaluation Summary:")
+    print("-" * 83)
+    print(f"{'k':>5} | {'Plain Accuracy (%)':>20} | {'FHE Accuracy (%)':>20} | {'Avg FHE Time (s)':>20}")
+    print("-" * 83)
     for row in summary_rows:
-        print(f"{row[0]:>5} | {row[1]:>20} | {row[2]:>20}")
-    print("-" * 55)
+        print(f"{row[0]:>5} | {row[1]:>20} | {row[2]:>20} | {row[3]:>20}")
+    print("-" * 83)
 
-        # --- Visualization ---
+    # --- Plotting Section ---
     k_vals = [row[0] for row in summary_rows]
-    accuracies = [float(row[1]) for row in summary_rows]
-    inference_times = [float(row[2]) for row in summary_rows]
+    accuracies = [float(row[2]) for row in summary_rows]
+    inference_times = [float(row[3]) for row in summary_rows]
 
     fig, ax1 = plt.subplots()
 
@@ -281,7 +263,7 @@ def main():
     ax1.plot(k_vals, accuracies, marker='o', color=color1, label='Accuracy')
     ax1.tick_params(axis='y', labelcolor=color1)
 
-    ax2 = ax1.twinx()  # instantiate a second axes that shares the same x-axis
+    ax2 = ax1.twinx()
     color2 = 'tab:red'
     ax2.set_ylabel('Avg FHE Inference Time (s)', color=color2)
     ax2.plot(k_vals, inference_times, marker='s', color=color2, label='Inference Time')
@@ -292,25 +274,18 @@ def main():
     plt.savefig(os.path.join(SUMMARY_DIR, "svd_k_comparison.png"))
     plt.show()
 
-        # --- Plot for Section 2.2: SVD Compression Experimentation ---
-    k_vals = [row[0] for row in summary_rows]
-    accuracies = [float(row[1]) for row in summary_rows]
-
     plt.figure(figsize=(8, 5))
     plt.plot(k_vals, accuracies, marker='o', linestyle='-', color='purple', linewidth=2)
     plt.title('Effect of SVD k-value on Classification Accuracy')
     plt.xlabel('SVD k-value (Number of Singular Values Kept)')
     plt.ylabel('Classification Accuracy (%)')
     plt.grid(True, linestyle='--', alpha=0.6)
-    plt.xticks(k_vals)  # Make sure each k is labeled
+    plt.xticks(k_vals)
     plt.tight_layout()
-
-    # Save the figure for documentation
     svd_exp_plot_path = os.path.join(SUMMARY_DIR, "svd_compression_accuracy.png")
     plt.savefig(svd_exp_plot_path)
     plt.show()
     print(f"📊 Saved SVD Compression Experimentation plot to {svd_exp_plot_path}")
-
 
 
 if __name__ == "__main__":
