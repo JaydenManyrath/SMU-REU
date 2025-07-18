@@ -2,3 +2,5 @@ venv
 results
 crime_svc.joblib
 models
+group_analysis.png
+group_results.json
